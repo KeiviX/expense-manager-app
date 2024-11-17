@@ -23,6 +23,7 @@ MANIFEST
 venv/
 
 # SQLite
+# SQLite database files
 *.db
 *.sqlite3
 

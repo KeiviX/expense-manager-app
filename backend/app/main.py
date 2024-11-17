@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, income
+from .routers import auth, income, expenses
 from .database import engine
 from . import models
 
@@ -21,6 +21,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(income.router)
+app.include_router(expenses.router)
 
 @app.get("/")
 def read_root():

@@ -1,9 +1,14 @@
 from datetime import timedelta
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from .. import models, schemas, auth
 from ..database import get_db
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/auth",
@@ -11,32 +16,51 @@ router = APIRouter(
 )
 
 @router.post("/register", response_model=schemas.User)
-def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    try:
+        logger.info(f"Attempting to register user with email: {user.email}")
+        
+        # Check if user already exists
+        db_user = db.query(models.User).filter(models.User.email == user.email).first()
+        if db_user:
+            logger.warning(f"User with email {user.email} already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        # Create new user
+        logger.info("Creating new user")
+        hashed_password = auth.get_password_hash(user.password)
+        db_user = models.User(
+            email=user.email,
+            hashed_password=hashed_password,
+            full_name=user.full_name
         )
-    
-    hashed_password = auth.get_password_hash(user.password)
-    db_user = models.User(
-        email=user.email,
-        hashed_password=hashed_password,
-        full_name=user.full_name
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+        
+        logger.info("Adding user to database")
+        db.add(db_user)
+        db.commit()
+        logger.info("User committed to database")
+        db.refresh(db_user)
+        logger.info("User registration successful")
+        
+        return db_user
+    except Exception as e:
+        logger.error(f"Registration failed with error: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 @router.post("/token", response_model=schemas.Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+    user = auth.authenticate_user(db, form_data.username, form_data.password)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

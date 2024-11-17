@@ -1,27 +1,25 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import auth, expenses, income
-from . import models
+from .routers import auth
 from .database import engine
+from . import models
 
+# Create database tables
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Expense Tracker API")
+app = FastAPI()
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend URL
+    allow_origins=["http://localhost:3000"],  # React app
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(auth.router)
-app.include_router(expenses.router)
-app.include_router(income.router)
 
 @app.get("/")
-async def root():
-    return {"message": "Welcome to the Expense Tracker API"}
+def read_root():
+    return {"Hello": "World"}

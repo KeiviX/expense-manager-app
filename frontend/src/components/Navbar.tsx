@@ -1,40 +1,80 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
-const Navbar: React.FC = () => {
-  const location = useLocation();
+export interface NavbarProps {
+  isAuthenticated: boolean;
+  setIsAuthenticated: (value: boolean) => void;
+}
 
-  const isActive = (path: string) => {
-    return location.pathname === path;
+const Navbar: React.FC<NavbarProps> = ({ isAuthenticated, setIsAuthenticated }) => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsAuthenticated(false);
+    navigate('/login');
   };
 
-  const linkClass = (path: string) =>
-    `px-3 py-2 rounded-md text-sm font-medium ${
-      isActive(path)
-        ? 'bg-gray-900 text-white'
-        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-    }`;
-
   return (
-    <nav className="bg-gray-800">
+    <nav className="bg-indigo-600">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-white font-bold text-xl">
-              Expense Tracker
-            </Link>
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-baseline space-x-4">
-                <Link to="/" className={linkClass('/')}>
-                  Dashboard
-                </Link>
-                <Link to="/statistics" className={linkClass('/statistics')}>
-                  Statistics
-                </Link>
-                <Link to="/income" className={linkClass('/income')}>
-                  Income
-                </Link>
+            <div className="flex-shrink-0">
+              <Link to="/" className="text-white font-bold text-xl">
+                Expense Tracker
+              </Link>
+            </div>
+            {isAuthenticated && (
+              <div className="hidden md:block">
+                <div className="ml-10 flex items-baseline space-x-4">
+                  <Link
+                    to="/"
+                    className="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    to="/statistics"
+                    className="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Statistics
+                  </Link>
+                  <Link
+                    to="/income"
+                    className="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Income
+                  </Link>
+                </div>
               </div>
+            )}
+          </div>
+          <div className="hidden md:block">
+            <div className="ml-4 flex items-center md:ml-6">
+              {isAuthenticated ? (
+                <button
+                  onClick={handleLogout}
+                  className="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Logout
+                </button>
+              ) : (
+                <div className="flex space-x-4">
+                  <Link
+                    to="/login"
+                    className="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="text-white hover:bg-indigo-500 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

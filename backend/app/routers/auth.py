@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from .. import models, schemas, auth
 from ..database import get_db
 
@@ -35,7 +36,8 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
         db_user = models.User(
             email=user.email,
             hashed_password=hashed_password,
-            full_name=user.full_name
+            full_name=user.full_name,
+            is_active=True
         )
         
         logger.info("Adding user to database")
@@ -46,8 +48,18 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
         logger.info("User registration successful")
         
         return db_user
+    except HTTPException as e:
+        logger.error(f"Registration failed with HTTP error: {str(e)}")
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"Database error during registration: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
     except Exception as e:
-        logger.error(f"Registration failed with error: {str(e)}")
+        logger.error(f"Unexpected error during registration: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -59,19 +71,28 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = auth.authenticate_user(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        user = auth.authenticate_user(db, form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth.create_access_token(
+            data={"sub": user.email}, expires_delta=access_token_expires
         )
-    
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth.create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login failed: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
+        )
 
 @router.get("/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
